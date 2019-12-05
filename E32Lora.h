@@ -1,6 +1,7 @@
 #ifndef E32LORA_H_
 #define E32LORA_H_
 #include <Arduino.h>
+
 class E32Lora {
 private:
     uint8_t _m0;
