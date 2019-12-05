@@ -2,6 +2,15 @@
 #define E32LORA_H_
 #include <Arduino.h>
 
+// OPERATING MODE 
+// NOTICE THAT SLEEP MODE CAN BE USED FOR SETTING COMMAND
+enum class OPERATING_MODE {
+    NORMAL,
+    WAKE_UP,
+    POWER_SAVING,
+    SLEEP
+};
+
 class E32Lora {
 private:
     uint8_t _m0;
@@ -9,17 +18,47 @@ private:
     uint8_t _aux;
     Stream *lora;
 public:
-    E32Lora(uint8_t m0, uint8_t m1, uint8_t aux) : _m0(m0), _m1(m1), _aux(aux) {} 
+    E32Lora(uint8_t m0, uint8_t m1, uint8_t aux) : _m0(m0), _m1(m1), _aux(aux) {
+        pinMode(_m0, OUTPUT);
+        pinMode(_m1, OUTPUT);
+    } 
     // this function will operate the module base on its mode
-    void begin(Stream *handler, uint8_t mode){
+    void begin(Stream *handler,OPERATING_MODE mode){
         // 
         lora = handler;
         switch(mode){
-            case 0:
-                pinMode(_m0, OUTPUT);
-                pinMode(_m1, OUTPUT);
+            case OPERATING_MODE::NORMAL:
+                /*
+                    UART and wireless channel are open, transparent transmission is on
+                */
                 digitalWrite(_m0, LOW);
                 digitalWrite(_m1, LOW);
+                delay(100);
+                break;
+            case OPERATING_MODE::WAKE_UP:
+                /*
+                    UART and wireless channel are open, the only difference with mode (NORMAL = 0)
+                    is that before transmitting data, increasing the wake up code automatically, so
+                    that it can awake the receiver under mode (SLEEP = 3).
+                */
+                digitalWrite(_m0, HIGH);
+                digitalWrite(_m1, LOW);
+                delay(100);
+                break;
+            case OPERATING_MODE::POWER_SAVING:
+                /*
+                    UART close, wireless is under air-awaken mode, after receiving data, UART open and send data.
+                */
+                digitalWrite(_m0, LOW);
+                digitalWrite(_m1, HIGH);
+                delay(100);
+                break;
+            case OPERATING_MODE::SLEEP:
+                /*
+                    sleep mode, receiving parameter setting command is available.
+                */
+                digitalWrite(_m0, HIGH);
+                digitalWrite(_m1, HIGH);
                 delay(100);
                 break;
             default:
@@ -70,4 +109,5 @@ public:
         return head;
     }
 };
+
 #endif
