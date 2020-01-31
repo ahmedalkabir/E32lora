@@ -18,7 +18,7 @@
 #define to_uint8_t(x) static_cast<uint8_t>(x)
 // int channel = 
 namespace SPEED {
-    
+
     // AIR DATA RATE 
     // 2 1 0
     // 0 0 0
@@ -54,6 +54,9 @@ namespace SPEED {
         P8E1 = (0b10 << 6),
     };
 
+    constexpr uint8_t setup(AIR_DATA_RATE tAIRD, TTL_UART_BAUDRATE tTTLUBAUD, UART_PARITY_BIT tUART){
+        return to_uint8_t(tAIRD) | to_uint8_t(tTTLUBAUD) | to_uint8_t(tUART);
+    }
 }
 
 namespace OPTION {
@@ -101,7 +104,7 @@ namespace OPTION {
     };
 
     // function to setup the OPTION parameter at compile time 
-    constexpr int setup(TRANSMIT_POWER tPWR, FEC_SWITCH tFEC, WIRELESS_WAKEUP_TIME tWW, IO_DRIVE_MODE tIO, TRANMISSION_MODE tTRM){
+    constexpr uint8_t setup(TRANSMIT_POWER tPWR, FEC_SWITCH tFEC, WIRELESS_WAKEUP_TIME tWW, IO_DRIVE_MODE tIO, TRANMISSION_MODE tTRM){
         return to_uint8_t(tPWR) | to_uint8_t(tFEC) | to_uint8_t(tWW) | to_uint8_t(tIO) | to_uint8_t(tTRM);
     }
 }
