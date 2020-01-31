@@ -2,11 +2,23 @@
 #define E32LORA_H_
 #include <Arduino.h>
 
+/*
+    I know sometimes it's better to use struct instead of enum with namespace container 
+    but I prefered this method for compile-time setup, nothing else for now.
+    if you have better solution please fed me up with yours
+*/
+
 // OPERATING MODE 
 // NOTICE THAT SLEEP MODE CAN BE USED FOR SETTING COMMAND
 
+/*
+    
+*/
+
 #define to_uint8_t(x) static_cast<uint8_t>(x)
+// int channel = 
 namespace SPEED {
+    
     // AIR DATA RATE 
     // 2 1 0
     // 0 0 0
@@ -57,30 +69,43 @@ namespace OPTION {
     // 2
     // 0
     enum class FEC_SWITCH : uint8_t {
-        OFF_FEC = (0b0 << 3),
-        ON_FEC  = (0b1 << 3)
+        OFF_FEC = (0b0 << 2),
+        ON_FEC  = (0b1 << 2)
     };
 
     // 5 4 3
     // 0 0 0 
     enum class WIRELESS_WAKEUP_TIME : uint8_t {
-        T250MS  = (0b000 << 4),
-        T500MS  = (0b001 << 4),
-        T750MS  = (0b010 << 4),
-        T1000MS = (0b011 << 4),
-        T1250MS = (0b100 << 4),
-        T1500MS = (0b101 << 4),
-        T1750MS = (0b110 << 4),
-        T2000MS = (0b111 << 4)
+        T250MS  = (0b000 << 3),
+        T500MS  = (0b001 << 3),
+        T750MS  = (0b010 << 3),
+        T1000MS = (0b011 << 3),
+        T1250MS = (0b100 << 3),
+        T1500MS = (0b101 << 3),
+        T1750MS = (0b110 << 3),
+        T2000MS = (0b111 << 3)
     };
 
     // 6
     // 0
     enum class IO_DRIVE_MODE : uint8_t {
-        PUSH_PULL_UP = (0b0 << 5),
-        OPEN_COLLECTER = (0b1 << 5)
+        PUSH_PULL_UP    = (0b1 << 6),
+        OPEN_COLLECTER  = (0b0 << 6)
     };
+
+    // 7
+    // 0
+    enum class TRANMISSION_MODE : uint8_t {
+        TRANSPARENT_MODE    = (0b0 << 7),
+        FIXED_MODE          = (0b1 << 7)
+    };
+
+    // function to setup the OPTION parameter at compile time 
+    constexpr int setup(TRANSMIT_POWER tPWR, FEC_SWITCH tFEC, WIRELESS_WAKEUP_TIME tWW, IO_DRIVE_MODE tIO, TRANMISSION_MODE tTRM){
+        return to_uint8_t(tPWR) | to_uint8_t(tFEC) | to_uint8_t(tWW) | to_uint8_t(tIO) | to_uint8_t(tTRM);
+    }
 }
+
 
 
 enum class OPERATING_MODE {
