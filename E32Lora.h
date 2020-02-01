@@ -16,7 +16,15 @@
 */
 
 #define to_uint8_t(x) static_cast<uint8_t>(x)
-// int channel = 
+
+namespace CHANNEL{
+    // we substraction from 410, because it's started from 410 
+    // as based on the datasheet 
+    constexpr uint8_t setup(uint16_t channel){
+        return (channel - 410);
+    }
+}
+
 namespace SPEED {
 
     // AIR DATA RATE 
@@ -132,9 +140,12 @@ public:
         pinMode(_m1, OUTPUT);
     } 
     // this function will operate the module base on its mode
-    void begin(Stream *handler,OPERATING_MODE mode){
+    void begin(Stream *handler){
         // 
         lora = handler;
+    }
+    
+    void operatingMode(OPERATING_MODE mode){
         switch(mode){
             case OPERATING_MODE::NORMAL:
                 /*
@@ -175,6 +186,30 @@ public:
         }
         delay(50);
     }
+
+    void setupConfiguration(uint16_t address, uint8_t speed, uint8_t channel, uint8_t option){
+        // let's switch to sleep mode first
+        digitalWrite(_m0, HIGH);
+        digitalWrite(_m1, HIGH);
+        delay(100);
+
+        // now let's write the option to LORA module
+        // C0 parameter it's going to save the configuration
+        lora->write(0xC0);
+        // write ADDH
+        lora->write((address >> 8) & 0xff);
+        // write ADDL
+        lora->write(address & 0xff);
+        // write speed configuration
+        lora->write(speed);
+        // write channel
+        lora->write(channel);
+        // write option configuration
+        lora->write(option);
+
+        delay(50);
+    }
+    
     // it will send up to 58 bytes
     void sendSinglePacket(uint16_t address, uint8_t channel,const char *packet){
         // let's check if the module isn't busy
@@ -194,37 +229,56 @@ public:
         }
     }
 
-    void sendData(uint16_t address, uint8_t channel, const char *data){
-        // char *startData = const_cast<char *>(data);
-        // char *cursor = startData;
-        // for(uint8_t i = 0; i < 58; i++){
-        //     cursor++;
-        // }
+    // send data to lora device
+    void sendData(const char *data){
+        lora->write(data);
     }
 
     bool Message(){
         return (!digitalRead(_aux));
     }
 
-    char *readMessage(char *buffer){
-        delay(5);
-        char *head = buffer;
-        char *pChar = buffer;
-        while (!digitalRead(_aux));
-        {
-            if (lora->available())
-            {
-                while (lora->available())
-                {
-                    char ch = lora->read();
-                    *pChar++ = ch;
+    bool readMessage(char *buffer){
+        bool start_flag = true;
+        unsigned long start_time = 0;
+        if(!digitalRead(_aux)){
+            delay(5);
+            uint16_t lenght;
+            char *head = buffer;
+            char *pChar = buffer;
+            // lora->flush();
+            while(!digitalRead(_aux)){
+                repeat:
+                if(lora->available()){
+                    while (lora->available())
+                    {
+                        char ch = lora->read();
+                        *pChar++ = ch;
+                    }            
                 }
             }
+
+            if(digitalRead(_aux)){
+                start_time = millis();
+                while(digitalRead(_aux)){
+                    if(!digitalRead(_aux) || (millis() - start_time > 300)){
+                        break;
+                    }
+                }
+                if((millis() - start_time) < 300){
+                    delay(5);
+                    if(!digitalRead(_aux)){
+                        goto repeat;
+                    }
+                }
+            }
+            *pChar = '\0';
+            return true;
         }
-        *pChar = '\0';
-        while(!digitalRead(_aux));
-        return head;
+        return false;
     }
+
+
 };
 
 #endif
