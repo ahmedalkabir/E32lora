@@ -247,8 +247,6 @@ public:
             char *pChar = buffer;
             
             // let's check if there's data to read 
-            if(!lora->available())
-                return false;
             while(!digitalRead(_aux)){
                 repeat:
                 if(lora->available()){
