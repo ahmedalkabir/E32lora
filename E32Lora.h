@@ -234,19 +234,21 @@ public:
         lora->write(data);
     }
 
+    // TODO: might to delete
     bool Message(){
         return (!digitalRead(_aux));
     }
 
+    // it's going to read received buffer
     bool readMessage(char *buffer){
-        bool start_flag = true;
         unsigned long start_time = 0;
         if(!digitalRead(_aux)){
             delay(5);
-            uint16_t lenght;
-            char *head = buffer;
             char *pChar = buffer;
-            // lora->flush();
+            
+            // let's check if there's data to read 
+            if(!lora->available())
+                return false;
             while(!digitalRead(_aux)){
                 repeat:
                 if(lora->available()){
