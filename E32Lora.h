@@ -141,12 +141,16 @@ public:
         to your module, argument are pins of arduino board M0, M1, AUX respectively, 
         and the fourth argument should be feed with desired mode you want to operate on
     */
-    E32Lora(uint8_t m0, uint8_t m1, uint8_t aux, OPERATING_MODE mode, on_recv_func_t on_recv_callback)
-        : _m0(m0), _m1(m1), _aux(aux), _internal_mode(mode), _callback_func_on_recv(on_recv_callback)
+    E32Lora(uint8_t m0, uint8_t m1, uint8_t aux, OPERATING_MODE mode)
+        : _m0(m0), _m1(m1), _aux(aux), _internal_mode(mode)
     {
         pinMode(_m0, OUTPUT);
         pinMode(_m1, OUTPUT);
         pinMode(_aux, INPUT);
+    }
+
+    void set_on_recv_cb(on_recv_func_t cb){
+        _callback_func_on_recv = cb;
     }
 
     /*
@@ -186,8 +190,8 @@ public:
                         {
                             start = false;
                             buffer[index_buffer] = '\0';
-                            _callback_func_on_recv((const char *)buffer, index_buffer);
                             while(!digitalRead(_aux));
+                            _callback_func_on_recv((const char *)buffer, index_buffer);
                             break;
                         }
                         buffer[index_buffer++] = ch;
