@@ -135,6 +135,22 @@ private:
         delay(50);
     }
 
+    void _send(const char *buffer)
+    {
+        if (digitalRead(_aux))
+        {
+            lora->write(0x7E);
+            lora->print(buffer);
+            lora->write(0x7E);
+            while (!digitalRead(_aux))
+            {
+#ifdef ESP8266
+                yield();
+#endif
+            }
+        }
+    }
+
 public:
     /*
         E32Lora: provide this construction with desired pin that you want to connect
@@ -149,7 +165,8 @@ public:
         pinMode(_aux, INPUT);
     }
 
-    void set_on_recv_cb(on_recv_func_t cb){
+    void set_on_recv_cb(on_recv_func_t cb)
+    {
         _callback_func_on_recv = cb;
     }
 
@@ -175,9 +192,9 @@ public:
         {
             while (!digitalRead(_aux))
             {
-                #ifdef ESP8266
+#ifdef ESP8266
                 yield();
-                #endif
+#endif
                 if (lora->available())
                 {
                     char ch = lora->read();
@@ -190,7 +207,8 @@ public:
                         {
                             start = false;
                             buffer[index_buffer] = '\0';
-                            while(!digitalRead(_aux));
+                            while (!digitalRead(_aux))
+                                ;
                             _callback_func_on_recv((const char *)buffer, index_buffer);
                             break;
                         }
@@ -207,8 +225,6 @@ public:
                 }
             }
         }
-
- 
     }
 
     /*
@@ -216,13 +232,32 @@ public:
     */
     void send(const char *buffer)
     {
-        if (digitalRead(_aux))
+        if (_internal_mode == OPERATING_MODE::NORMAL || _internal_mode == OPERATING_MODE::WAKE_UP)
         {
-            lora->write(0x7E);
-            lora->print(buffer);
-            lora->write(0x7E);
+            _send(buffer);
+        }
+        else
+        {
+            OPERATING_MODE prev_mode = _internal_mode;
+            _set_mode(OPERATING_MODE::WAKE_UP);
+            delay(50);
             while (!digitalRead(_aux))
-                ;
+            {
+#ifdef ESP82266
+                yield();
+#endif
+            }
+
+            _send(buffer);
+            delay(50);
+            _set_mode(prev_mode);
+            delay(50);
+            while (!digitalRead(_aux))
+            {
+#ifdef ESP82266
+                yield();
+#endif
+            }
         }
     }
 
