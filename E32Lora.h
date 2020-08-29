@@ -19,7 +19,7 @@
     
 */
 #define LIMIT 128
-typedef void (*on_recv_func_t)(const char *buffer, int length);
+typedef void (*on_recv_func_t)(const uint8_t *buffer, int length);
 
 enum class OPERATING_MODE
 {
@@ -27,6 +27,12 @@ enum class OPERATING_MODE
     WAKE_UP,
     POWER_SAVING,
     SLEEP
+};
+
+enum class Mode
+{
+    ModeTx,
+    ModeRx
 };
 
 class E32Lora
@@ -37,6 +43,7 @@ private:
     uint8_t _aux;
     OPERATING_MODE _internal_mode;
     on_recv_func_t _callback_func_on_recv;
+    Mode _mode;
 
     Stream *lora;
 
@@ -90,7 +97,7 @@ private:
         *pBuffer = '\0';
     }
 
-    void _set_mode(OPERATING_MODE mode)
+    void _set_operating_mode(OPERATING_MODE mode)
     {
         _internal_mode = mode;
         switch (mode)
@@ -135,12 +142,12 @@ private:
         delay(50);
     }
 
-    void _send(const char *buffer)
+    void _send(const uint8_t *buffer, uint8_t len)
     {
         if (digitalRead(_aux))
         {
             lora->write(0x7E);
-            lora->print(buffer);
+            lora->write(buffer, len);
             lora->write(0x7E);
             while (!digitalRead(_aux))
             {
@@ -148,6 +155,31 @@ private:
                 yield();
 #endif
             }
+        }
+    }
+
+    void _set_mode(Mode m)
+    {
+        _mode = m;
+    }
+
+    inline void _waitAuxHigh()
+    {
+        while (!digitalRead(_aux))
+        {
+#ifdef ESP8266
+            yield();
+#endif
+        }
+    }
+
+    inline void _waitAuxLow()
+    {
+        while (digitalRead(_aux))
+        {
+#ifdef ESP8266
+            yield();
+#endif
         }
     }
 
@@ -179,7 +211,8 @@ public:
     {
         //
         lora = handler;
-        _set_mode(_internal_mode);
+        _set_operating_mode(_internal_mode);
+        _set_mode(Mode::ModeRx);
     }
 
     /*
@@ -188,39 +221,58 @@ public:
     */
     void loop()
     {
-        if (!digitalRead(_aux))
+        if (_mode == Mode::ModeRx)
         {
-            while (!digitalRead(_aux))
+            if (!digitalRead(_aux))
             {
-#ifdef ESP8266
-                yield();
-#endif
-                if (lora->available())
+                while (!digitalRead(_aux))
                 {
-                    char ch = lora->read();
-
-                    // if we received a start deleimeter
-                    // let's read the message
-                    if (start)
+#ifdef ESP8266
+                    yield();
+#endif
+                    if (lora->available())
                     {
+                        char ch = lora->read();
+                        // if we received a start deleimeter
+                        // let's read the message
+                        if (start)
+                        {
+                            if (ch == 0x7E)
+                            {
+                                start = false;
+                                buffer[index_buffer] = '\0';
+                                while (!digitalRead(_aux))
+                                    ;
+                                // for now use 0x7A as ACK tag
+
+                                if (_internal_mode == OPERATING_MODE::POWER_SAVING)
+                                {
+                                    OPERATING_MODE _prev = _internal_mode;
+                                    _set_operating_mode(OPERATING_MODE::NORMAL);
+                                    lora->write(0x7A);
+                                    _waitAuxHigh();
+                                }
+                                else
+                                {
+                                    lora->write(0x7A);
+                                    _waitAuxHigh();
+                                }
+                                if(index_buffer == 0){
+                                    start = true;
+                                }
+                                _callback_func_on_recv(buffer, index_buffer);
+                                break;
+                            }
+                            buffer[index_buffer++] = ch;
+                        }
+
+                        // to indicate if we recived message
+                        // or not
                         if (ch == 0x7E)
                         {
-                            start = false;
-                            buffer[index_buffer] = '\0';
-                            while (!digitalRead(_aux))
-                                ;
-                            _callback_func_on_recv((const char *)buffer, index_buffer);
-                            break;
+                            index_buffer = 0;
+                            start = true;
                         }
-                        buffer[index_buffer++] = ch;
-                    }
-
-                    // to indicate if we recived message
-                    // or not
-                    if (ch == 0x7E)
-                    {
-                        index_buffer = 0;
-                        start = true;
                     }
                 }
             }
@@ -230,16 +282,39 @@ public:
     /*
     
     */
-    void send(const char *buffer)
+    bool _waitForAck()
     {
+        unsigned long start_time = millis();
+        while (1)
+        {
+            // maybe you need to consider about
+            // the timeout
+            if (millis() - start_time > 1500)
+            {
+                return false;
+            }
+
+            if (!lora->available())
+                continue;
+
+            return lora->read() == 0x7A ? true : false;
+        }
+    }
+    bool send(const uint8_t *buffer, uint8_t len)
+    {
+
         if (_internal_mode == OPERATING_MODE::NORMAL || _internal_mode == OPERATING_MODE::WAKE_UP)
         {
-            _send(buffer);
+            if (digitalRead(_aux))
+            {
+                _send(buffer, len);
+                return _waitForAck();
+            }
         }
         else
         {
             OPERATING_MODE prev_mode = _internal_mode;
-            _set_mode(OPERATING_MODE::WAKE_UP);
+            _set_operating_mode(OPERATING_MODE::WAKE_UP);
             delay(50);
             while (!digitalRead(_aux))
             {
@@ -247,10 +322,13 @@ public:
                 yield();
 #endif
             }
-
-            _send(buffer);
+            if (digitalRead(_aux))
+            {
+                _send(buffer, len);
+                return _waitForAck();
+            }
             delay(50);
-            _set_mode(prev_mode);
+            _set_operating_mode(prev_mode);
             delay(50);
             while (!digitalRead(_aux))
             {
@@ -265,7 +343,7 @@ public:
     {
         // let's switch to sleep mode first
         OPERATING_MODE prev_mode = _internal_mode;
-        _set_mode(OPERATING_MODE::SLEEP);
+        _set_operating_mode(OPERATING_MODE::SLEEP);
 
         // now let's write the option to LORA module
         // C0 parameter it's going to save the configuration
@@ -294,7 +372,7 @@ public:
             fill(configuration, lora);
         }
 
-        _set_mode(prev_mode);
+        _set_operating_mode(prev_mode);
     }
 
     OPERATING_MODE currentMode()
