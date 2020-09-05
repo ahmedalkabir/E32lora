@@ -18,7 +18,7 @@
 /*
     
 */
-#define LIMIT 128
+#define LIMIT 80
 typedef void (*on_recv_func_t)(const uint8_t *buffer, int length);
 
 enum class OPERATING_MODE
@@ -35,6 +35,14 @@ enum class Mode
     ModeRx
 };
 
+// Packet to be used within
+// read_message() if statement
+struct Packet
+{
+    uint8_t *buffer;
+    uint8_t length;
+};
+
 class E32Lora
 {
 private:
@@ -42,7 +50,7 @@ private:
     uint8_t _m1;
     uint8_t _aux;
     OPERATING_MODE _internal_mode;
-    on_recv_func_t _callback_func_on_recv;
+    on_recv_func_t _callback_func_on_recv = NULL;
     Mode _mode;
 
     Stream *lora;
@@ -50,6 +58,9 @@ private:
     uint8_t buffer[LIMIT];
     uint8_t index_buffer = 0;
     bool start = false;
+
+    Packet new_message;
+    bool IsThereNewMessageInBuffer = false;
 
     char configuration[7];
 
@@ -257,10 +268,16 @@ public:
                                     lora->write(0x7A);
                                     _waitAuxHigh();
                                 }
-                                if(index_buffer == 0){
+                                if (index_buffer == 0)
+                                {
                                     start = true;
                                 }
-                                _callback_func_on_recv(buffer, index_buffer);
+                                (_callback_func_on_recv != NULL) ? _callback_func_on_recv(buffer, index_buffer) : (void)NULL;
+
+                                // update IsThereNewMessageInBuffer
+                                IsThereNewMessageInBuffer = true;
+                                new_message.buffer = buffer;
+                                new_message.length = index_buffer;
                                 break;
                             }
                             buffer[index_buffer++] = ch;
@@ -273,6 +290,10 @@ public:
                             index_buffer = 0;
                             start = true;
                         }
+                    }
+                    else
+                    {
+                        IsThereNewMessageInBuffer = false;
                     }
                 }
             }
@@ -287,6 +308,9 @@ public:
         unsigned long start_time = millis();
         while (1)
         {
+#ifdef ESP8266
+            yield();
+#endif
             // maybe you need to consider about
             // the timeout
             if (millis() - start_time > 1500)
@@ -300,14 +324,15 @@ public:
             return lora->read() == 0x7A ? true : false;
         }
     }
-    bool send(const uint8_t *buffer, uint8_t len)
+    template <size_t LEN>
+    bool send(const uint8_t (&buffer)[LEN])
     {
 
         if (_internal_mode == OPERATING_MODE::NORMAL || _internal_mode == OPERATING_MODE::WAKE_UP)
         {
             if (digitalRead(_aux))
             {
-                _send(buffer, len);
+                _send(buffer, LEN);
                 return _waitForAck();
             }
         }
@@ -324,7 +349,7 @@ public:
             }
             if (digitalRead(_aux))
             {
-                _send(buffer, len);
+                _send(buffer, LEN);
                 return _waitForAck();
             }
             delay(50);
@@ -378,6 +403,20 @@ public:
     OPERATING_MODE currentMode()
     {
         return _internal_mode;
+    }
+
+    // added on 5 - 9 - 2020
+    // wrapper around loop function
+    bool isThereNewMessage()
+    {
+        //
+        loop();
+        return IsThereNewMessageInBuffer;
+    }
+
+    Packet *readMessage()
+    {
+        return &new_message;
     }
 };
 
