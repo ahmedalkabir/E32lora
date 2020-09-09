@@ -296,6 +296,8 @@ public:
                         IsThereNewMessageInBuffer = false;
                     }
                 }
+            } else {
+                IsThereNewMessageInBuffer = false;
             }
         }
     }
