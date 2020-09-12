@@ -327,7 +327,7 @@ public:
         }
     }
     template <size_t LEN>
-    bool send(const uint8_t (&buffer)[LEN])
+    bool sendData(const uint8_t (&buffer)[LEN])
     {
 
         if (_internal_mode == OPERATING_MODE::NORMAL || _internal_mode == OPERATING_MODE::WAKE_UP)
